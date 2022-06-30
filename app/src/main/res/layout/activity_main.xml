@@ -17,30 +17,37 @@
         android:layout_marginTop="4dp"
         android:layout_marginEnd="33dp"
         android:paddingTop="10dp"
-        android:rotation="-39"
-        android:rotationX="46"
-        android:rotationY="48"
         android:text="@string/hello_world"
         android:textAlignment="center"
         android:textAllCaps="true"
-        android:textColor="#673AB7"
+        android:textColor="#536DFE"
         android:textSize="25sp"
-        android:textStyle="bold|italic"
+        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
-        android:id="@+id/button3"
+        android:id="@+id/toast_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="52dp"
+        android:layout_marginStart="32dp"
         android:layout_marginTop="116dp"
-        android:text="@string/toast_button"
+        android:text="@string/toast_button_text"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:onClick="showToast"/>
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/next_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="112dp"
+        android:layout_marginEnd="24dp"
+        android:text="@string/next_button_text"
+        android:textSize="11sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/text" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
