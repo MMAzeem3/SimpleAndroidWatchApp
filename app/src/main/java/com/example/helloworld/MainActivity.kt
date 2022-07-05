@@ -19,20 +19,13 @@ class MainActivity : Activity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-//        val nextButton: Button = findViewById<Button>(R.id.next_button)
-        findViewById<Button>(R.id.next_button).setOnClickListener {
-            fun onClick(v: View?) {
-                println("clicked")
-                val intent = Intent(this, SecondActivity::class.java)
-                startActivity(intent)
-            }
+        val nextButton: Button = findViewById<Button>(R.id.next_button)
+        nextButton.setOnClickListener {
+            val intent = Intent(this, NewPage::class.java)
+            startActivity(intent)
         }
         findViewById<Button>(R.id.toast_button).setOnClickListener {
             Toast.makeText(applicationContext, "Hello", Toast.LENGTH_SHORT).show()
         }
     }
-//    fun showToast(view: View){
-//        val myToast = Toast.makeText(applicationContext, "Hello Toast!", Toast.LENGTH_SHORT)
-//        myToast.show()
-//    }
 }
