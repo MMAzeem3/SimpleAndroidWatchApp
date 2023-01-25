@@ -1,4 +1,3 @@
-# Simple Android Watch App
+# Android Watch OS Template
 
-This project is a template for a simple android watch  
-It consists of two activity pages with buttons to navigate between them
+This project contains simple templates for a android watch apps
