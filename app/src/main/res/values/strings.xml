@@ -1,12 +1,8 @@
 <resources>
-    <string name="app_name">HelloWorld</string>
+    <string name="app_name">Compose-Testing</string>
     <!--
     This string is used for square devices and overridden by hello_world in
     values-round/strings.xml for round devices.
     -->
-    <string name="hello_world">Hello Square World!</string>
-    <string name="toast_button_text">Toast!</string>
-    <string name="next_button_text"><![CDATA[>]]></string>
-    <string name="second_page">Second Page!</string>
-    <string name="back_button_text"><![CDATA[<]]></string>
+    <string name="hello_world">From the Square world,\nHello, %1$s!</string>
 </resources>
