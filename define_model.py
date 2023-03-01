@@ -2,14 +2,6 @@ import torch
 from torch import nn
 import numpy as np
 
-# X = np.arange(300)
-
-# X = torch.from_numpy(X).float()
-
-# dense1 = nn.Linear(300,10)
-# print(dense1(X))
-
-
 class MLP(nn.Module):
     def __init__(self):
         super().__init__()
@@ -17,7 +9,6 @@ class MLP(nn.Module):
             nn.Linear(300, 10),
             nn.ReLU(),
             nn.Linear(10, 1),
-            nn.Tanh()
         )
 
     def forward(self, x):
@@ -26,16 +17,14 @@ class MLP(nn.Module):
 
 
 model = MLP()
-
-# torch.save(model.state_dict(), "model.pth")
-
+example = torch.full((300,), 2.0)
+print(model(example))
 
 # Save the model for Android
 from torch.utils.mobile_optimizer import optimize_for_mobile
 
-example = torch.rand(300)
+# example = torch.rand(300)
 traced_script_module = torch.jit.trace(model, example)
 optimized_traced_model = optimize_for_mobile(traced_script_module)
-# optimized_traced_model._save_for_lite_interpreter("app/src/main/assets/model.pt")
-optimized_traced_model._save_for_lite_interpreter("./model.pt")
+optimized_traced_model._save_for_lite_interpreter("WearOSPytorchTemplate/app/src/main/assets/model.pt")
 
