@@ -27,6 +27,7 @@ import androidx.wear.compose.material.Text
 import com.example.triggersensor.presentation.theme.TriggerSensorTheme
 import java.io.File
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : ComponentActivity(){
@@ -50,52 +51,63 @@ class MainActivity : ComponentActivity(){
         triggerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
         sensorManager.requestTriggerSensor(listener, triggerSensor)
 
-        logFileStream = FileOutputStream(File(this.filesDir, "Log.txt"))
-        accFileStream = FileOutputStream(File(this.filesDir, "data.txt"))
+        val dir = SimpleDateFormat("yyyy-MM-dd_HH_mm_ss", Locale.ENGLISH).format(Date())
+        File(this.filesDir, dir).mkdir()
+
+        logFileStream = FileOutputStream(File(this.filesDir, "$dir/Log.txt"))
+        accFileStream = FileOutputStream(File(this.filesDir, "$dir/data.txt"))
         accFileStream.write("timestamp,x,y,z,real_time_ms\n".toByteArray())
         logFileStream.write("real_time_ms,event\n".toByteArray())
-        logFileStream.write("${Calendar.getInstance().timeInMillis},OnCreate()".toByteArray())
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnCreate()\n".toByteArray())
+        Log.d("TriggerSensorState", "onCreate")
     }
 
     override fun onStart() {
         super.onStart()
-        logFileStream.write("${Calendar.getInstance().timeInMillis},OnStart()".toByteArray())
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnStart()\n".toByteArray())
+        Log.d("TriggerSensorState", "onStart")
     }
     override fun onResume() {
         super.onResume()
-        logFileStream.write("${Calendar.getInstance().timeInMillis},OnResume()".toByteArray())
+        Log.d("TriggerSensorState", "onResume")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnResume()\n".toByteArray())
     }
     override fun onPause() {
         super.onPause()
-        logFileStream.write("${Calendar.getInstance().timeInMillis},onPause()".toByteArray())
+        logFileStream.write("${Calendar.getInstance().timeInMillis},onPause()\n".toByteArray())
+        Log.d("TriggerSensorState", "onPause")
     }
     override fun onStop() {
         super.onStop()
-        logFileStream.write("${Calendar.getInstance().timeInMillis},OnStop()".toByteArray())
-        unregisterAcc()
-        sensorManager.requestTriggerSensor(listener, triggerSensor)
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnStop()\n".toByteArray())
+        Log.d("TriggerSensorState", "onStop")
+//        unregisterAcc()
+//        sensorManager.requestTriggerSensor(listener, triggerSensor)
         viewModel.updateX(0F)
     }
     override fun onDestroy() {
         super.onDestroy()
-        logFileStream.write("${Calendar.getInstance().timeInMillis},onDestroy()".toByteArray())
+        logFileStream.write("${Calendar.getInstance().timeInMillis},onDestroy()\n".toByteArray())
+        Log.d("TriggerSensorState", "onDestroy")
         accFileStream.close()
         logFileStream.close()
     }
     override fun onRestart() {
         super.onRestart()
-        logFileStream.write("${Calendar.getInstance().timeInMillis},onRestart()".toByteArray())
+        logFileStream.write("${Calendar.getInstance().timeInMillis},onRestart()\n".toByteArray())
+        Log.d("TriggerSensorState", "onRestart")
     }
 
     fun unregisterAcc() {
         sensorManager.unregisterListener(accListener)
-        logFileStream.write("${Calendar.getInstance().timeInMillis},Acc stop".toByteArray())
+        Log.d("TriggerSensorState", "Acc stop")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},Acc stop\n".toByteArray())
     }
 
     inner class TriggerListener : TriggerEventListener() {
         override fun onTrigger(event: TriggerEvent) {
-            Log.d("TriggerSensorOnTrigger", "${event.timestamp}")
-            logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered".toByteArray())
+            Log.d("TriggerSensorState", "Triggered")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered\n".toByteArray())
             // Re-register trigger sensor after trigger
 
             // Register acc sensor
@@ -109,6 +121,7 @@ class MainActivity : ComponentActivity(){
     inner class AccListener : SensorEventListener {
         fun register() {
             logFileStream.write("${Calendar.getInstance().timeInMillis},Acc start\n".toByteArray())
+            Log.d("TriggerSensorState", "Acc start")
             accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
             val samplingPeriodMicroseconds = 1000000/100
             sensorManager.registerListener(this@AccListener, accSensor, samplingPeriodMicroseconds)
