@@ -8,10 +8,13 @@ package com.example.triggersensor.presentation
 
 import android.annotation.SuppressLint
 import android.hardware.*
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,17 +42,15 @@ class MainActivity : ComponentActivity(){
     private var viewModel = MainViewModel()
     private lateinit var logFileStream: FileOutputStream
     private lateinit var accFileStream: FileOutputStream
+    private var triggerTimer: Timer = Timer()
+    private var triggerTimerTask: TriggerTimerTask = TriggerTimerTask()
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             WearApp(viewModel.x)
         }
-
-        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-        listener = TriggerListener()
-        triggerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
-        sensorManager.requestTriggerSensor(listener, triggerSensor)
 
         val dir = SimpleDateFormat("yyyy-MM-dd_HH_mm_ss", Locale.ENGLISH).format(Date())
         File(this.filesDir, dir).mkdir()
@@ -60,6 +61,70 @@ class MainActivity : ComponentActivity(){
         logFileStream.write("real_time_ms,event\n".toByteArray())
         logFileStream.write("${Calendar.getInstance().timeInMillis},OnCreate()\n".toByteArray())
         Log.d("TriggerSensorState", "onCreate")
+
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        for (sensor in sensorManager.getSensorList(Sensor.TYPE_ALL)) {
+            Log.d("TriggerSensorSensors",sensor.toString())
+            Log.d("TriggerSensorSensors","Type Memory File:${sensor.isDirectChannelTypeSupported(SensorDirectChannel.TYPE_MEMORY_FILE)}")
+            Log.d("TriggerSensorSensors","Type Hardware Buffer: ${sensor.isDirectChannelTypeSupported(SensorDirectChannel.TYPE_HARDWARE_BUFFER)}")
+        }
+        listener = TriggerListener()
+        triggerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
+        sensorManager.requestTriggerSensor(listener, triggerSensor)
+
+
+
+    }
+
+    fun unregisterAcc() {
+        sensorManager.unregisterListener(accListener)
+        Log.d("TriggerSensorState", "Acc stop")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},Acc stop\n".toByteArray())
+    }
+
+    inner class TriggerListener : TriggerEventListener() {
+        override fun onTrigger(event: TriggerEvent) {
+            Log.d("TriggerSensorState", "Triggered")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered\n".toByteArray())
+
+            // register
+            accListener.register()
+
+            // Set timer to reset trigger, stop accelerometer, and lock screen on
+            var timerLengthMins: Long = 3
+            triggerTimer.schedule(triggerTimerTask, (timerLengthMins * 60 * 1e3).toLong())
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    inner class AccListener : SensorEventListener {
+        fun register() {
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Acc start\n".toByteArray())
+            Log.d("TriggerSensorState", "Acc start")
+            accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            val samplingPeriodMicroseconds = 1000000/100
+            sensorManager.registerListener(this@AccListener, accSensor, samplingPeriodMicroseconds)
+        }
+
+        override fun onSensorChanged(event: SensorEvent) {
+            Log.d("TriggerSensorOnChange", "${event.values[0]}")
+            viewModel.updateX(event.values[0])
+            accFileStream.write("${event.timestamp},${event.values[0]},${event.values[1]},${event.values[2]},${Calendar.getInstance().timeInMillis}\n".toByteArray())
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        }
+    }
+
+    inner class TriggerTimerTask : TimerTask() {
+        override fun run() {
+            // unregister accelerometer, reset trigger, and let go of screen lock
+            Log.d("TriggerSensorState", "Timer End")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Timer End\n".toByteArray())
+            unregisterAcc()
+            sensorManager.requestTriggerSensor(listener, triggerSensor)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     override fun onStart() {
@@ -81,8 +146,6 @@ class MainActivity : ComponentActivity(){
         super.onStop()
         logFileStream.write("${Calendar.getInstance().timeInMillis},OnStop()\n".toByteArray())
         Log.d("TriggerSensorState", "onStop")
-//        unregisterAcc()
-//        sensorManager.requestTriggerSensor(listener, triggerSensor)
         viewModel.updateX(0F)
     }
     override fun onDestroy() {
@@ -96,45 +159,6 @@ class MainActivity : ComponentActivity(){
         super.onRestart()
         logFileStream.write("${Calendar.getInstance().timeInMillis},onRestart()\n".toByteArray())
         Log.d("TriggerSensorState", "onRestart")
-    }
-
-    fun unregisterAcc() {
-        sensorManager.unregisterListener(accListener)
-        Log.d("TriggerSensorState", "Acc stop")
-        logFileStream.write("${Calendar.getInstance().timeInMillis},Acc stop\n".toByteArray())
-    }
-
-    inner class TriggerListener : TriggerEventListener() {
-        override fun onTrigger(event: TriggerEvent) {
-            Log.d("TriggerSensorState", "Triggered")
-            logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered\n".toByteArray())
-            // Re-register trigger sensor after trigger
-
-            // Register acc sensor
-            // unregister if registered
-
-            // register
-            accListener.register()
-        }
-    }
-
-    inner class AccListener : SensorEventListener {
-        fun register() {
-            logFileStream.write("${Calendar.getInstance().timeInMillis},Acc start\n".toByteArray())
-            Log.d("TriggerSensorState", "Acc start")
-            accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-            val samplingPeriodMicroseconds = 1000000/100
-            sensorManager.registerListener(this@AccListener, accSensor, samplingPeriodMicroseconds)
-        }
-
-        override fun onSensorChanged(event: SensorEvent) {
-            Log.d("TriggerSensorOnChange", "${event.values[0]}")
-            viewModel.updateX(event.values[0])
-            accFileStream.write("${event.timestamp},${event.values[0]},${event.values[1]},${event.values[2]},${Calendar.getInstance().timeInMillis}\n".toByteArray())
-        }
-
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        }
     }
 }
 
