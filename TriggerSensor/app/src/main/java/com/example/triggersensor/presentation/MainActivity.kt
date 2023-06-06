@@ -6,12 +6,13 @@
 
 package com.example.triggersensor.presentation
 
-import android.annotation.SuppressLint
+import android.content.Intent
 import android.hardware.*
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
+import android.window.SplashScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.ViewModel
 import androidx.wear.compose.material.MaterialTheme
@@ -33,6 +33,7 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+
 class MainActivity : ComponentActivity(){
     private lateinit var sensorManager: SensorManager
     private lateinit var triggerSensor: Sensor
@@ -42,14 +43,13 @@ class MainActivity : ComponentActivity(){
     private var viewModel = MainViewModel()
     private lateinit var logFileStream: FileOutputStream
     private lateinit var accFileStream: FileOutputStream
-    private var triggerTimer: Timer = Timer()
-    private var triggerTimerTask: TriggerTimerTask = TriggerTimerTask()
+    private val timerLengthMins: Float = .5F
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WearApp(viewModel.x)
+            WearApp("${viewModel.nSamples}")
         }
 
         val dir = SimpleDateFormat("yyyy-MM-dd_HH_mm_ss", Locale.ENGLISH).format(Date())
@@ -68,18 +68,14 @@ class MainActivity : ComponentActivity(){
             Log.d("TriggerSensorSensors","Type Memory File:${sensor.isDirectChannelTypeSupported(SensorDirectChannel.TYPE_MEMORY_FILE)}")
             Log.d("TriggerSensorSensors","Type Hardware Buffer: ${sensor.isDirectChannelTypeSupported(SensorDirectChannel.TYPE_HARDWARE_BUFFER)}")
         }
+        accListener.register()
+
         listener = TriggerListener()
         triggerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
         sensorManager.requestTriggerSensor(listener, triggerSensor)
 
+        accListener.unregister()
 
-
-    }
-
-    fun unregisterAcc() {
-        sensorManager.unregisterListener(accListener)
-        Log.d("TriggerSensorState", "Acc stop")
-        logFileStream.write("${Calendar.getInstance().timeInMillis},Acc stop\n".toByteArray())
     }
 
     inner class TriggerListener : TriggerEventListener() {
@@ -91,9 +87,13 @@ class MainActivity : ComponentActivity(){
             accListener.register()
 
             // Set timer to reset trigger, stop accelerometer, and lock screen on
-            var timerLengthMins: Long = 3
-            triggerTimer.schedule(triggerTimerTask, (timerLengthMins * 60 * 1e3).toLong())
+            Timer().schedule(TriggerTimerTask(), (timerLengthMins * 60 * 1e3).toLong())
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+            // Bring app to foreground
+            val intent = Intent(applicationContext, this@MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
         }
     }
 
@@ -105,10 +105,15 @@ class MainActivity : ComponentActivity(){
             val samplingPeriodMicroseconds = 1000000/100
             sensorManager.registerListener(this@AccListener, accSensor, samplingPeriodMicroseconds)
         }
+        fun unregister() {
+            sensorManager.unregisterListener(this@AccListener)
+            Log.d("TriggerSensorState", "Acc stop")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Acc stop\n".toByteArray())
+        }
 
         override fun onSensorChanged(event: SensorEvent) {
             Log.d("TriggerSensorOnChange", "${event.values[0]}")
-            viewModel.updateX(event.values[0])
+            viewModel.updateNSamples(viewModel.nSamples + 1)
             accFileStream.write("${event.timestamp},${event.values[0]},${event.values[1]},${event.values[2]},${Calendar.getInstance().timeInMillis}\n".toByteArray())
         }
 
@@ -121,9 +126,12 @@ class MainActivity : ComponentActivity(){
             // unregister accelerometer, reset trigger, and let go of screen lock
             Log.d("TriggerSensorState", "Timer End")
             logFileStream.write("${Calendar.getInstance().timeInMillis},Timer End\n".toByteArray())
-            unregisterAcc()
+            accListener.unregister()
             sensorManager.requestTriggerSensor(listener, triggerSensor)
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            runOnUiThread {
+                Log.d("TriggerSensorState", "Screen flag clear")
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
         }
     }
 
@@ -164,14 +172,18 @@ class MainActivity : ComponentActivity(){
 
 class MainViewModel : ViewModel() {
     var x by mutableStateOf(0F)
+    var nSamples by mutableStateOf(0)
 
     fun updateX(xValue: Float) {
         x = xValue
     }
+    fun updateNSamples(_nSamples: Int) {
+        nSamples = _nSamples
+    }
 }
 
 @Composable
-fun WearApp(x: Float) {
+fun WearApp(text: String) {
     TriggerSensorTheme {
         /* If you have enough items in your list, use [ScalingLazyColumn] which is an optimized
          * version of LazyColumn for wear devices with some added features. For more information,
@@ -183,17 +195,17 @@ fun WearApp(x: Float) {
                 .background(MaterialTheme.colors.background),
             verticalArrangement = Arrangement.Center
         ) {
-            Greeting(x = "$x")
+            Greeting(text)
         }
     }
 }
 
 @Composable
-fun Greeting(x: String) {
+fun Greeting(text: String) {
     Text(
         modifier = Modifier.fillMaxWidth(),
         textAlign = TextAlign.Center,
         color = MaterialTheme.colors.primary,
-        text = "Trigger Sensor\nx: $x"
+        text = "Trigger Sensor\nnSamples: $text"
     )
 }
