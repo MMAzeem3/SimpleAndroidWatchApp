@@ -10,7 +10,9 @@ import android.content.Intent
 import android.hardware.*
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Log
+import android.view.Window
 import android.view.WindowManager
 import android.window.SplashScreen
 import androidx.activity.ComponentActivity
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity(){
     private lateinit var logFileStream: FileOutputStream
     private lateinit var accFileStream: FileOutputStream
     private val timerLengthMins: Float = .5F
+    private lateinit var wakeLock: PowerManager.WakeLock
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,11 +66,6 @@ class MainActivity : ComponentActivity(){
         Log.d("TriggerSensorState", "onCreate")
 
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-        for (sensor in sensorManager.getSensorList(Sensor.TYPE_ALL)) {
-            Log.d("TriggerSensorSensors",sensor.toString())
-            Log.d("TriggerSensorSensors","Type Memory File:${sensor.isDirectChannelTypeSupported(SensorDirectChannel.TYPE_MEMORY_FILE)}")
-            Log.d("TriggerSensorSensors","Type Hardware Buffer: ${sensor.isDirectChannelTypeSupported(SensorDirectChannel.TYPE_HARDWARE_BUFFER)}")
-        }
         accListener.register()
 
         listener = TriggerListener()
@@ -76,9 +74,13 @@ class MainActivity : ComponentActivity(){
 
         accListener.unregister()
 
+        // Set up wake lock (deprecated, but it works)
+        val powerManager: PowerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "TriggerSensor:keep_screen_on")
     }
 
     inner class TriggerListener : TriggerEventListener() {
+        @RequiresApi(Build.VERSION_CODES.O_MR1)
         override fun onTrigger(event: TriggerEvent) {
             Log.d("TriggerSensorState", "Triggered")
             logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered\n".toByteArray())
@@ -86,14 +88,14 @@ class MainActivity : ComponentActivity(){
             // register
             accListener.register()
 
-            // Set timer to reset trigger, stop accelerometer, and lock screen on
+            // acquire wake lock for given time
+            wakeLock.acquire((timerLengthMins * 60 * 1e3).toLong())
+            // Set timer to reset trigger and stop acc
             Timer().schedule(TriggerTimerTask(), (timerLengthMins * 60 * 1e3).toLong())
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-            // Bring app to foreground
-            val intent = Intent(applicationContext, this@MainActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
+            // these functions are the modern (non-deprecated) ones to use
+            // this@MainActivity.setTurnScreenOn(true)
+            // window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -128,10 +130,12 @@ class MainActivity : ComponentActivity(){
             logFileStream.write("${Calendar.getInstance().timeInMillis},Timer End\n".toByteArray())
             accListener.unregister()
             sensorManager.requestTriggerSensor(listener, triggerSensor)
-            runOnUiThread {
-                Log.d("TriggerSensorState", "Screen flag clear")
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            }
+
+            // this is handled by wakelock for now
+            // runOnUiThread {
+            //    Log.d("TriggerSensorState", "Screen flag clear")
+            //    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            // }
         }
     }
 
