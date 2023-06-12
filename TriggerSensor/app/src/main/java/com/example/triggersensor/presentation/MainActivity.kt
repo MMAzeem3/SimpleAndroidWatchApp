@@ -99,8 +99,8 @@ class MainActivity : ComponentActivity(){
             Timer().schedule(TriggerTimerTask(), (timerLengthMins * 60 * 1e3).toLong())
 
             // these functions are the modern (non-deprecated) ones to use
-            // this@MainActivity.setTurnScreenOn(true)
-            // window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+//             this@MainActivity.setTurnScreenOn(true)
+             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
             // onTrigger, vibrate watch for 1s
             var vibrator: Vibrator
@@ -151,10 +151,10 @@ class MainActivity : ComponentActivity(){
             sensorManager.requestTriggerSensor(listener, triggerSensor)
 
             // this is handled by wakelock for now
-            // runOnUiThread {
-            //    Log.d("TriggerSensorState", "Screen flag clear")
-            //    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            // }
+             runOnUiThread {
+                Log.d("TriggerSensorState", "Screen flag clear")
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+             }
 
             // on timer end, vibrate watch for 0.5s
             var vibrator: Vibrator
