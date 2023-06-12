@@ -11,6 +11,9 @@ import android.hardware.*
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.view.Window
 import android.view.WindowManager
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.core.content.getSystemService
 import androidx.lifecycle.ViewModel
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
@@ -52,7 +56,7 @@ class MainActivity : ComponentActivity(){
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WearApp("${viewModel.nSamples}")
+            WearApp("${viewModel.nSamples}\n${viewModel.text}")
         }
 
         val dir = SimpleDateFormat("yyyy-MM-dd_HH_mm_ss", Locale.ENGLISH).format(Date())
@@ -80,10 +84,11 @@ class MainActivity : ComponentActivity(){
     }
 
     inner class TriggerListener : TriggerEventListener() {
-        @RequiresApi(Build.VERSION_CODES.O_MR1)
+        @RequiresApi(Build.VERSION_CODES.O)
         override fun onTrigger(event: TriggerEvent) {
             Log.d("TriggerSensorState", "Triggered")
             logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered\n".toByteArray())
+            viewModel.updateText("Triggered")
 
             // register
             accListener.register()
@@ -96,6 +101,17 @@ class MainActivity : ComponentActivity(){
             // these functions are the modern (non-deprecated) ones to use
             // this@MainActivity.setTurnScreenOn(true)
             // window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+            // onTrigger, vibrate watch for 1s
+            var vibrator: Vibrator
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                var vibratorManager: VibratorManager = getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibrator = vibratorManager.defaultVibrator
+            } else {
+                vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            vibrator.vibrate(VibrationEffect.createOneShot((1 * 1e3).toLong(), VibrationEffect.DEFAULT_AMPLITUDE))
         }
     }
 
@@ -124,10 +140,13 @@ class MainActivity : ComponentActivity(){
     }
 
     inner class TriggerTimerTask : TimerTask() {
+        @RequiresApi(Build.VERSION_CODES.O)
         override fun run() {
             // unregister accelerometer, reset trigger, and let go of screen lock
             Log.d("TriggerSensorState", "Timer End")
             logFileStream.write("${Calendar.getInstance().timeInMillis},Timer End\n".toByteArray())
+            viewModel.updateText("Timer End")
+
             accListener.unregister()
             sensorManager.requestTriggerSensor(listener, triggerSensor)
 
@@ -136,6 +155,17 @@ class MainActivity : ComponentActivity(){
             //    Log.d("TriggerSensorState", "Screen flag clear")
             //    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             // }
+
+            // on timer end, vibrate watch for 0.5s
+            var vibrator: Vibrator
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                var vibratorManager: VibratorManager = getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibrator = vibratorManager.defaultVibrator
+            } else {
+                vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            vibrator.vibrate(VibrationEffect.createOneShot((0.5 * 1e3).toLong(), VibrationEffect.DEFAULT_AMPLITUDE))
         }
     }
 
@@ -177,12 +207,16 @@ class MainActivity : ComponentActivity(){
 class MainViewModel : ViewModel() {
     var x by mutableStateOf(0F)
     var nSamples by mutableStateOf(0)
+    var text by mutableStateOf("Created")
 
     fun updateX(xValue: Float) {
         x = xValue
     }
     fun updateNSamples(_nSamples: Int) {
         nSamples = _nSamples
+    }
+    fun updateText(_text: String) {
+        text = _text
     }
 }
 

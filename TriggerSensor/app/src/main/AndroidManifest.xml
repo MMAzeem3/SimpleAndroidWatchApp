@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <uses-feature android:name="android.hardware.type.watch" />
 
@@ -11,10 +12,19 @@
         android:label="TriggerSensor"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
+        <activity
+            android:name=".SensorOn"
+            android:exported="false"
+            android:label="@string/title_activity_sensor_on"
+            android:theme="@android:style/Theme.DeviceDefault">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="" />
+        </activity>
+
         <uses-library
             android:name="com.google.android.wearable"
             android:required="true" />
-
         <!--
                Set to true if your app is Standalone, that is, it does not require the handheld
                app to run.
