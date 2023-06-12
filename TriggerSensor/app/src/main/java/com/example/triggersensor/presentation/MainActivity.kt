@@ -1,13 +1,11 @@
-/* While this template provides a good starting point for using Wear Compose, you can always
- * take a look at https://github.com/android/wear-os-samples/tree/main/ComposeStarter and
- * https://github.com/android/wear-os-samples/tree/main/ComposeAdvanced to find the most up to date
- * changes to the libraries and their usages.
- */
-
 package com.example.triggersensor.presentation
 
-import android.content.Intent
-import android.hardware.*
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.hardware.TriggerEvent
+import android.hardware.TriggerEventListener
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -15,21 +13,20 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
-import android.view.Window
 import android.view.WindowManager
-import android.window.SplashScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.core.content.getSystemService
 import androidx.lifecycle.ViewModel
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
@@ -37,8 +34,11 @@ import com.example.triggersensor.presentation.theme.TriggerSensorTheme
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
-import java.util.*
-
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.Timer
+import java.util.TimerTask
 
 class MainActivity : ComponentActivity(){
     private lateinit var sensorManager: SensorManager
@@ -52,7 +52,6 @@ class MainActivity : ComponentActivity(){
     private val timerLengthMins: Float = .5F
     private lateinit var wakeLock: PowerManager.WakeLock
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -84,7 +83,6 @@ class MainActivity : ComponentActivity(){
     }
 
     inner class TriggerListener : TriggerEventListener() {
-        @RequiresApi(Build.VERSION_CODES.O)
         override fun onTrigger(event: TriggerEvent) {
             Log.d("TriggerSensorState", "Triggered")
             logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered\n".toByteArray())
@@ -99,8 +97,8 @@ class MainActivity : ComponentActivity(){
             Timer().schedule(TriggerTimerTask(), (timerLengthMins * 60 * 1e3).toLong())
 
             // these functions are the modern (non-deprecated) ones to use
-//             this@MainActivity.setTurnScreenOn(true)
-             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+//             this@com.example.triggersensor.presentation.MainActivity.setTurnScreenOn(true)
+//            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
             // onTrigger, vibrate watch for 1s
             var vibrator: Vibrator
@@ -140,7 +138,6 @@ class MainActivity : ComponentActivity(){
     }
 
     inner class TriggerTimerTask : TimerTask() {
-        @RequiresApi(Build.VERSION_CODES.O)
         override fun run() {
             // unregister accelerometer, reset trigger, and let go of screen lock
             Log.d("TriggerSensorState", "Timer End")
@@ -151,10 +148,10 @@ class MainActivity : ComponentActivity(){
             sensorManager.requestTriggerSensor(listener, triggerSensor)
 
             // this is handled by wakelock for now
-             runOnUiThread {
-                Log.d("TriggerSensorState", "Screen flag clear")
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-             }
+//            runOnUiThread {
+//                Log.d("TriggerSensorState", "Screen flag clear")
+//                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+//            }
 
             // on timer end, vibrate watch for 0.5s
             var vibrator: Vibrator
