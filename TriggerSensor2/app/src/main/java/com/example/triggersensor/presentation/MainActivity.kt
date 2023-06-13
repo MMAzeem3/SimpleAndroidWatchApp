@@ -1,10 +1,5 @@
 package com.example.triggersensor.presentation
 
-import android.annotation.SuppressLint
-import android.app.AlarmManager
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -14,14 +9,10 @@ import android.hardware.TriggerEvent
 import android.hardware.TriggerEventListener
 import android.os.Build
 import android.os.Bundle
-import android.os.Parcel
-import android.os.Parcelable
 import android.os.PowerManager
-import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.provider.CalendarContract.CalendarAlerts
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -43,7 +34,6 @@ import androidx.wear.compose.material.Text
 import com.example.triggersensor.presentation.theme.TriggerSensorTheme
 import java.io.File
 import java.io.FileOutputStream
-import java.io.Serializable
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -51,23 +41,17 @@ import java.util.Locale
 import java.util.Timer
 import java.util.TimerTask
 
-@SuppressLint("StaticFieldLeak")
-val triggerListener = TriggerListener()
-
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(){
     private lateinit var sensorManager: SensorManager
     private lateinit var triggerSensor: Sensor
-//    private lateinit var triggerListener: TriggerListener
+    private lateinit var listener: TriggerListener
     private lateinit var accSensor: Sensor
     private var accListener: AccListener = AccListener()
     private var viewModel = MainViewModel()
-    private var dir = SimpleDateFormat("yyyy-MM-dd_HH_mm_ss", Locale.ENGLISH).format(Date())
-    private lateinit var logFile: File
+    private lateinit var logFileStream: FileOutputStream
     private lateinit var accFileStream: FileOutputStream
-    private val timerLengthMins: Float = 1.0F
+    private val timerLengthMins: Float = .5F
     private lateinit var wakeLock: PowerManager.WakeLock
-    private val requestTriggerAlarm: RequestTriggerAlarm = RequestTriggerAlarm()
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,42 +59,67 @@ class MainActivity : ComponentActivity() {
             WearApp("${viewModel.nSamples}\n${viewModel.text}")
         }
 
+        val dir = SimpleDateFormat("yyyy-MM-dd_HH_mm_ss", Locale.ENGLISH).format(Date())
         File(this.filesDir, dir).mkdir()
 
-        logFile = File(this.filesDir, "$dir/Log.txt")
+        logFileStream = FileOutputStream(File(this.filesDir, "$dir/Log.txt"))
         accFileStream = FileOutputStream(File(this.filesDir, "$dir/data.txt"))
         accFileStream.write("timestamp,x,y,z,real_time_ms\n".toByteArray())
-        logFile.writeText("real_time_ms,event\n")
-        logFile.writeText("${Calendar.getInstance().timeInMillis},OnCreate()\n")
+        logFileStream.write("real_time_ms,event\n".toByteArray())
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnCreate()\n".toByteArray())
         Log.d("TriggerSensorState", "onCreate")
 
-        val powerManager: PowerManager = getSystemService(ComponentActivity.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "TriggerSensor:keep_screen_on")
-
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-//        accListener.register()
+        accListener.register()
 
-        triggerListener.setValues(
-            this,
-            logFile,
-            viewModel,
-            accListener,
-            wakeLock,
-            timerLengthMins,
-            TriggerTimerTask()
-        )
+        listener = TriggerListener()
         triggerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
-        sensorManager.requestTriggerSensor(triggerListener, triggerSensor)
+        sensorManager.requestTriggerSensor(listener, triggerSensor)
 
-//        accListener.unregister()
+        accListener.unregister()
 
-        // Set recurring timer - request trigger sensor every 5 minutes
-        requestTriggerAlarm.setAlarm(this, dir)
+        // Set up wake lock (deprecated, but it works)
+        val powerManager: PowerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "TriggerSensor:keep_screen_on")
     }
 
-    inner class AccListener : SensorEventListener{
+    inner class TriggerListener : TriggerEventListener() {
+        override fun onTrigger(event: TriggerEvent) {
+            Log.d("TriggerSensorState", "Triggered")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Triggered\n".toByteArray())
+            viewModel.updateText("Triggered")
+
+            // register
+            accListener.register()
+
+            // acquire wake lock for given time
+//            wakeLock.acquire((timerLengthMins * 60 * 1e3).toLong())
+            // Set timer to reset trigger and stop acc
+            Timer().schedule(TriggerTimerTask(), (timerLengthMins * 60 * 1e3).toLong())
+
+            // these functions are the modern (non-deprecated) ones to use
+//             this@com.example.triggersensor.presentation.MainActivity.setTurnScreenOn(true)
+//            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+            // onTrigger, vibrate watch for 1s
+            var vibrator: Vibrator
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                var vibratorManager: VibratorManager = getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibrator = vibratorManager.defaultVibrator
+            } else {
+                vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            vibrator.vibrate(VibrationEffect.createOneShot((1 * 1e3).toLong(), VibrationEffect.DEFAULT_AMPLITUDE))
+
+            // launch SensorOn activity
+            startActivity(Intent(this@MainActivity, SensorOn::class.java))
+        }
+    }
+
+    inner class AccListener : SensorEventListener {
         fun register() {
-            logFile.writeText("${Calendar.getInstance().timeInMillis},Acc start\n")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Acc start\n".toByteArray())
             Log.d("TriggerSensorState", "Acc start")
             accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
             val samplingPeriodMicroseconds = 1000000/100
@@ -119,7 +128,7 @@ class MainActivity : ComponentActivity() {
         fun unregister() {
             sensorManager.unregisterListener(this@AccListener)
             Log.d("TriggerSensorState", "Acc stop")
-            logFile.writeText("${Calendar.getInstance().timeInMillis},Acc stop\n")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Acc stop\n".toByteArray())
         }
 
         override fun onSensorChanged(event: SensorEvent) {
@@ -136,13 +145,11 @@ class MainActivity : ComponentActivity() {
         override fun run() {
             // unregister accelerometer, reset trigger, and let go of screen lock
             Log.d("TriggerSensorState", "Timer End")
-            logFile.writeText("${Calendar.getInstance().timeInMillis},Timer End\n")
+            logFileStream.write("${Calendar.getInstance().timeInMillis},Timer End\n".toByteArray())
             viewModel.updateText("Timer End")
 
-            sensorManager.cancelTriggerSensor(triggerListener, triggerSensor)
-            sensorManager.requestTriggerSensor(triggerListener, triggerSensor)
-
             accListener.unregister()
+            sensorManager.requestTriggerSensor(listener, triggerSensor)
 
             // this is handled by wakelock for now
 //            runOnUiThread {
@@ -165,80 +172,36 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        logFile.writeText("${Calendar.getInstance().timeInMillis},OnStart()\n")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnStart()\n".toByteArray())
         Log.d("TriggerSensorState", "onStart")
     }
     override fun onResume() {
         super.onResume()
         Log.d("TriggerSensorState", "onResume")
-
-        sensorManager.cancelTriggerSensor(triggerListener, triggerSensor)
-        sensorManager.requestTriggerSensor(triggerListener, triggerSensor)
-
-        logFile.writeText("${Calendar.getInstance().timeInMillis},OnResume()\n")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnResume()\n".toByteArray())
     }
     override fun onPause() {
         super.onPause()
-        logFile.writeText("${Calendar.getInstance().timeInMillis},onPause()\n")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},onPause()\n".toByteArray())
         Log.d("TriggerSensorState", "onPause")
     }
     override fun onStop() {
         super.onStop()
-        logFile.writeText("${Calendar.getInstance().timeInMillis},OnStop()\n")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},OnStop()\n".toByteArray())
         Log.d("TriggerSensorState", "onStop")
         viewModel.updateX(0F)
     }
     override fun onDestroy() {
         super.onDestroy()
-        logFile.writeText("${Calendar.getInstance().timeInMillis},onDestroy()\n")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},onDestroy()\n".toByteArray())
         Log.d("TriggerSensorState", "onDestroy")
-//        accFileStream.close()
-        requestTriggerAlarm.cancelAlarm(this)
+        accFileStream.close()
+        logFileStream.close()
     }
     override fun onRestart() {
         super.onRestart()
-        logFile.writeText("${Calendar.getInstance().timeInMillis},onRestart()\n")
+        logFileStream.write("${Calendar.getInstance().timeInMillis},onRestart()\n".toByteArray())
         Log.d("TriggerSensorState", "onRestart")
-    }
-}
-
-//class Data(
-//    val dir: String,
-////    val viewModel: MainViewModel,
-//    val logFile: File,
-////    val sensorManager: SensorManager,
-//    val triggerListener: MainActivity.TriggerListener
-//) : Serializable {}
-
-class RequestTriggerAlarm : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent?) {
-        Log.d("TriggerSensorState", "RequestTriggerAlarm")
-        var dir = intent?.getStringExtra("dir")
-        File(context.filesDir, "$dir/Log.txt").writeText("${Calendar.getInstance().timeInMillis},RequestTriggerAlarm")
-
-        var sensorManager = context.getSystemService(ComponentActivity.SENSOR_SERVICE) as SensorManager
-        var triggerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
-
-
-        sensorManager.cancelTriggerSensor(triggerListener, triggerSensor)
-        sensorManager.requestTriggerSensor(triggerListener, triggerSensor)
-
-    }
-
-    fun setAlarm(context: Context, dir: String) {
-        var alarmManager: AlarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        var i: Intent = Intent(context, RequestTriggerAlarm::class.java)
-        i.putExtra("dir", dir)
-        i.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        var pi: PendingIntent = PendingIntent.getBroadcast(context, 0, i,  PendingIntent.FLAG_IMMUTABLE)
-        alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime()+1, (5 * 60 * 1e3).toLong(), pi)
-    }
-
-    fun cancelAlarm(context: Context) {
-        var alarmManager: AlarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        var i: Intent = Intent(context, RequestTriggerAlarm::class.java)
-        var sender: PendingIntent = PendingIntent.getBroadcast(context, 0, i,  PendingIntent.FLAG_IMMUTABLE)
-        alarmManager.cancel(sender)
     }
 }
 
